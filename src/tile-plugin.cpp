@@ -434,24 +434,19 @@ class tile_plugin_t : public wf::plugin_interface_t
 
     signal_connection_t on_focus_changed = [=] (signal_data_t *data)
     {
-        std::cout << "on_focus_changed" << std::endl;
         if (auto view = tile::view_node_t::get_node(get_signaled_view(data)))
         {
             nonstd::observer_ptr<tile::tree_node_t> current = view;
-            std::cout << "on_focus_changed_1" << std::endl;
 
             while (current->parent != nullptr)
             {
-                std::cout << "on_focus_changed_2" << std::endl;
                 int idx = current->get_sibling_index();
                 if (idx != current->parent->get_focused_idx())
                 {
-                    std::cout << "on_focus_changed_3" << std::endl;
                     current->parent->set_focused_idx(idx);
                 }
                 else
                 {
-                    std::cout << "on_focus_changed_4" << std::endl;
                     break;
                 }
 
