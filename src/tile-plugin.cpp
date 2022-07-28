@@ -40,7 +40,12 @@ class view_auto_tile_t : public wf::custom_data_t
 class tile_plugin_t : public wf::plugin_interface_t
 {
   private:
+    /**
+     * Initialize options from configuration file.
+     */
     wf::view_matcher_t tile_by_default{"better-tiling/tile_by_default"};
+    // TODO: add blacklist for windows that should default to floating.
+
     wf::option_wrapper_t<bool> keep_fullscreen_on_adjacent{
         "better-tiling/keep_fullscreen_on_adjacent"};
     wf::option_wrapper_t<wf::buttonbinding_t>
@@ -72,7 +77,9 @@ class tile_plugin_t : public wf::plugin_interface_t
     wf::option_wrapper_t<int> outer_horiz_gaps{"better-tiling/outer_horiz_gap_size"};
     wf::option_wrapper_t<int> outer_vert_gaps{"better-tiling/outer_vert_gap_size"};
 
-  private:
+    /**
+     * Initialize other variables and defaults.
+     */
     std::vector<std::vector<std::unique_ptr<wf::tile::tree_node_t>>> roots;
     std::vector<std::vector<nonstd::observer_ptr<wf::sublayer_t>>> tiled_sublayer;
 
