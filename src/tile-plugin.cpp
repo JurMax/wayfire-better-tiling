@@ -16,7 +16,7 @@ class tile_workspace_implementation_t : public wf::workspace_implementation_t
   public:
     bool view_movable(wayfire_view view) override
     {
-        return wf::tile::view_node_t::get_node(view) == nullptr;
+        return true; //wf::tile::view_node_t::get_node(view) == nullptr;
     }
 
     bool view_resizable(wayfire_view view) override

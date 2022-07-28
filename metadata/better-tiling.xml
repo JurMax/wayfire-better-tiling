@@ -2,7 +2,7 @@
 <wayfire>
 	<plugin name="better-tiling">
 		<_short>Better Tiling</_short>
-		<_long>A plugin which provides some tiling features, inspired by Sway.  The plugin is meant to contain only the basics.</_long>
+		<_long>A plugin which provides some tiling features, inspired by Sway. </_long>
 		<category>Window Management</category>
 		<option name="tile_by_default" type="string">
 			<_short>Tile enabled for specified window types</_short>

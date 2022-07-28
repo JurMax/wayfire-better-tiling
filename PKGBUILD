@@ -17,7 +17,7 @@ sha256sums=()
 
 build() {
     cd ../
-    meson build --buildtype=release
+    meson build --prefix=/usr --buildtype=release
     ninja -C build
 }
 
