@@ -40,37 +40,37 @@ class view_auto_tile_t : public wf::custom_data_t
 class tile_plugin_t : public wf::plugin_interface_t
 {
   private:
-    wf::view_matcher_t tile_by_default{"simple-tile/tile_by_default"};
+    wf::view_matcher_t tile_by_default{"better-tiling/tile_by_default"};
     wf::option_wrapper_t<bool> keep_fullscreen_on_adjacent{
-        "simple-tile/keep_fullscreen_on_adjacent"};
+        "better-tiling/keep_fullscreen_on_adjacent"};
     wf::option_wrapper_t<wf::buttonbinding_t>
-        button_move{"simple-tile/button_move"},
-        button_resize{"simple-tile/button_resize"};
-    wf::option_wrapper_t<wf::keybinding_t> key_toggle_tile{"simple-tile/key_toggle"};
+        button_move{"better-tiling/button_move"},
+        button_resize{"better-tiling/button_resize"};
+    wf::option_wrapper_t<wf::keybinding_t> key_toggle_tile{"better-tiling/key_toggle"};
 
     wf::option_wrapper_t<wf::keybinding_t>
-        key_toggle_split_direction{"simple-tile/key_toggle_split_direction"},
-        key_split_horizontal{"simple-tile/key_split_horizontal"},
-        key_split_vertical{"simple-tile/key_split_vertical"};
+        key_toggle_split_direction{"better-tiling/key_toggle_split_direction"},
+        key_split_horizontal{"better-tiling/key_split_horizontal"},
+        key_split_vertical{"better-tiling/key_split_vertical"};
 
     wf::option_wrapper_t<wf::keybinding_t>
-        key_toggle_tabbed{"simple-tile/key_toggle_tabbed"};
+        key_toggle_tabbed{"better-tiling/key_toggle_tabbed"};
 
     wf::option_wrapper_t<wf::keybinding_t>
-        key_focus_left{"simple-tile/key_focus_left"},
-        key_focus_right{"simple-tile/key_focus_right"},
-        key_focus_above{"simple-tile/key_focus_above"},
-        key_focus_below{"simple-tile/key_focus_below"};
+        key_focus_left{"better-tiling/key_focus_left"},
+        key_focus_right{"better-tiling/key_focus_right"},
+        key_focus_above{"better-tiling/key_focus_above"},
+        key_focus_below{"better-tiling/key_focus_below"};
 
     wf::option_wrapper_t<wf::keybinding_t>
-        key_move_left{"simple-tile/key_move_left"},
-        key_move_right{"simple-tile/key_move_right"},
-        key_move_above{"simple-tile/key_move_above"},
-        key_move_below{"simple-tile/key_move_below"};
+        key_move_left{"better-tiling/key_move_left"},
+        key_move_right{"better-tiling/key_move_right"},
+        key_move_above{"better-tiling/key_move_above"},
+        key_move_below{"better-tiling/key_move_below"};
 
-    wf::option_wrapper_t<int> inner_gaps{"simple-tile/inner_gap_size"};
-    wf::option_wrapper_t<int> outer_horiz_gaps{"simple-tile/outer_horiz_gap_size"};
-    wf::option_wrapper_t<int> outer_vert_gaps{"simple-tile/outer_vert_gap_size"};
+    wf::option_wrapper_t<int> inner_gaps{"better-tiling/inner_gap_size"};
+    wf::option_wrapper_t<int> outer_horiz_gaps{"better-tiling/outer_horiz_gap_size"};
+    wf::option_wrapper_t<int> outer_vert_gaps{"better-tiling/outer_vert_gap_size"};
 
   private:
     std::vector<std::vector<std::unique_ptr<wf::tile::tree_node_t>>> roots;
@@ -811,7 +811,7 @@ class tile_plugin_t : public wf::plugin_interface_t
   public:
     void init() override
     {
-        this->grab_interface->name = "simple-tile";
+        this->grab_interface->name = "better-tiling";
         /* TODO: change how grab interfaces work - plugins should do ifaces on
          * their own, and should be able to have more than one */
         this->grab_interface->capabilities = CAPABILITY_MANAGE_COMPOSITOR;

@@ -382,7 +382,7 @@ struct view_node_custom_data_t : public custom_data_t
  * its displayed wm geometry region is a specified box on the screen
  */
 static const std::string scale_transformer_name =
-    "simple-tile-scale-transformer";
+    "better-tiling-scale-transformer";
 struct view_node_t::scale_transformer_t : public wf::view_2D
 {
     wf::geometry_t box;
@@ -434,7 +434,7 @@ class tile_view_animation_t : public wf::grid::grid_animation_t
         // transformer so that we can enforce the correct geometry from the
         // start.
         view->pop_transformer("grid-crossfade");
-        view->emit_signal("simple-tile-adjust-transformer", nullptr);
+        view->emit_signal("better-tiling-adjust-transformer", nullptr);
     }
 
     tile_view_animation_t(const tile_view_animation_t &) = delete;
@@ -458,7 +458,7 @@ view_node_t::view_node_t(wayfire_view view)
     });
     view->connect_signal("geometry-changed", &on_geometry_changed);
     view->connect_signal("decoration-changed", &on_decoration_changed);
-    view->connect_signal("simple-tile-adjust-transformer", &on_geometry_changed);
+    view->connect_signal("better-tiling-adjust-transformer", &on_geometry_changed);
 }
 
 view_node_t::~view_node_t()
@@ -531,7 +531,7 @@ bool view_node_t::needs_crossfade()
         return true;
     }
 
-    if (view->get_output()->is_plugin_active("simple-tile"))
+    if (view->get_output()->is_plugin_active("better-tiling"))
     {
         // Disable animations while controllers are active
         return false;
