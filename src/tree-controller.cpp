@@ -223,7 +223,7 @@ move_view_controller_t::~move_view_controller_t()
 }
 
 nonstd::observer_ptr<view_node_t> move_view_controller_t::check_drop_destination(
-    wf::point_t input)
+    wf::point_t /*input*/)
 {
     auto dropped_at = find_view_at(this->root, this->current_input);
     if (!dropped_at || (dropped_at == this->grabbed_view))
@@ -498,7 +498,7 @@ find_resizing_pair(bool horiz)
     return result_pair;
 }
 
-void resize_view_controller_t::adjust_geometry(int32_t& x1, int32_t& len1,
+void resize_view_controller_t::adjust_geometry(int32_t& /*x1*/, int32_t& len1,
     int32_t& x2, int32_t& len2, int32_t delta)
 {
     /*
