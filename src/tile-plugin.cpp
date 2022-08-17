@@ -175,13 +175,8 @@ class tile_plugin_t : public wf::plugin_interface_t
         return true;
     }
 
-    static std::unique_ptr<wf::tile::tile_controller_t> get_default_controller()
-    {
-        return std::make_unique<wf::tile::tile_controller_t>();
-    }
-
     std::unique_ptr<wf::tile::tile_controller_t> controller =
-        get_default_controller();
+        std::make_unique<wf::tile::tile_controller_t>();
 
     /**
      * Translate coordinates from output-local coordinates to the coordinate
@@ -270,7 +265,7 @@ class tile_plugin_t : public wf::plugin_interface_t
             controller->input_released();
         }
 
-        controller = get_default_controller();
+        controller = std::make_unique<wf::tile::tile_controller_t>();
     }
 
     void attach_view(wayfire_view view, wf::point_t vp = {-1, -1})
