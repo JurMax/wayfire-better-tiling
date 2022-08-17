@@ -11,10 +11,27 @@
 
 namespace wf
 {
+
+/*
+ * This class is taken from wayfire/signal-definitions.cpp, to function as
+ * both view_change_workspace_signal and as view_change_viewport_signal in
+ * older wayfire versions.
+ */
+struct view_change_workspace_signal_copy : public _view_signal
+{
+    wf::point_t from, to;
+
+    /**
+     * Indicates whether the old workspace is known.
+     * If false, then the `from` field should be ignored.
+     */
+    bool old_workspace_valid = true;
+};
+
 class tile_workspace_implementation_t : public wf::workspace_implementation_t
 {
   public:
-    bool view_movable(wayfire_view view) override
+    bool view_movable(wayfire_view /*view*/) override
     {
         return true; //wf::tile::view_node_t::get_node(view) == nullptr;
     }
@@ -403,7 +420,7 @@ class tile_plugin_t : public wf::plugin_interface_t
         }
     };
 
-    signal_connection_t on_workarea_changed = [=] (signal_data_t *data)
+    signal_connection_t on_workarea_changed = [=] (signal_data_t */*data*/)
     {
         update_root_size(output->workspace->get_workarea());
     };
@@ -486,7 +503,7 @@ class tile_plugin_t : public wf::plugin_interface_t
 
     signal_connection_t on_view_change_workspace = [=] (signal_data_t *data)
     {
-        auto ev = (view_change_workspace_signal*)(data);
+        auto ev = (view_change_workspace_signal_copy*)(data);
         if (ev->old_workspace_valid)
         {
             change_view_workspace(ev->view, ev->to);
@@ -531,7 +548,7 @@ class tile_plugin_t : public wf::plugin_interface_t
         return false;
     };
 
-    wf::key_callback on_toggle_split_direction = [=] (wf::keybinding_t binding)
+    wf::key_callback on_toggle_split_direction = [=] (wf::keybinding_t /*binding*/)
     {
         if (auto active_node = get_active_node())
         {
@@ -586,7 +603,7 @@ class tile_plugin_t : public wf::plugin_interface_t
         return true;
     };
 
-    wf::key_callback on_toggle_tabbed = [=] (wf::keybinding_t binding)
+    wf::key_callback on_toggle_tabbed = [=] (wf::keybinding_t /*binding*/)
     {
         auto focused_node = get_active_node();
         if (focused_node && focused_node->parent)
@@ -791,7 +808,7 @@ class tile_plugin_t : public wf::plugin_interface_t
         output->add_key(key_move_below, &on_move_adjacent);
 
         grab_interface->callbacks.pointer.button =
-            [=] (uint32_t b, uint32_t state)
+            [=] (uint32_t /*button*/, uint32_t state)
         {
             if (state == WLR_BUTTON_RELEASED)
             {
@@ -832,6 +849,7 @@ class tile_plugin_t : public wf::plugin_interface_t
             &on_fullscreen_request);
         output->connect_signal("view-focused", &on_focus_changed);
         output->connect_signal("view-change-workspace", &on_view_change_workspace);
+        output->connect_signal("view-change-viewport", &on_view_change_workspace); /* For older wayfire versions. */
         output->connect_signal("view-minimize-request", &on_view_minimized);
         output->connect_signal("workspace-grid-changed",
             &on_workspace_grid_changed);

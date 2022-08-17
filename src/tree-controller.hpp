@@ -52,7 +52,7 @@ class tile_controller_t
     virtual ~tile_controller_t() = default;
 
     /** Called when the input is moved */
-    virtual void input_motion(wf::point_t input)
+    virtual void input_motion(wf::point_t /*input*/)
     {}
 
     /**
