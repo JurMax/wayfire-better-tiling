@@ -61,6 +61,7 @@ class tile_plugin_t : public wf::plugin_interface_t
      * Initialize options from configuration file.
      */
     wf::view_matcher_t tile_by_default{"better-tiling/tile_by_default"};
+    wf::view_matcher_t dont_tile_by_default{"better-tiling/dont_tile_by_default"};
     // TODO: add blacklist for windows that should default to floating.
 
     wf::option_wrapper_t<bool> keep_fullscreen_on_adjacent{
@@ -340,7 +341,9 @@ class tile_plugin_t : public wf::plugin_interface_t
 
     bool tile_window_by_default(wayfire_view view)
     {
-        return tile_by_default.matches(view) && can_tile_view(view);
+        return can_tile_view(view)
+            && tile_by_default.matches(view) 
+            && !dont_tile_by_default.matches(view);
     }
 
     signal_connection_t on_view_attached = [=] (signal_data_t *data)

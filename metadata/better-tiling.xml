@@ -9,6 +9,11 @@
 			<_long>Enables tiling for windows matching the specified criteria.</_long>
 			<default>all</default>
 		</option>
+		<option name="dont_tile_by_default" type="string">
+			<_short>Tile disabled for specified window types</_short>
+			<_long>Disables tiling for windows matching the specified criteria.</_long>
+			<default>all</default>
+		</option>
 		<option name="keep_fullscreen_on_adjacent" type="bool">
 			<_short>Keep fullscreen on adjacent</_short>
 			<_long>Specifies whether to keep fullscreen state when changing the focus.  If **true**, the next focused window will also get fullscreen.  If **false**, leaves fullscreen.</_long>
