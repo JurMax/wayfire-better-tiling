@@ -2,8 +2,8 @@
 #include <wayfire/output.hpp>
 #include <wayfire/core.hpp>
 #include <wayfire/matcher.hpp>
-#include <wayfire/workspace-manager.hpp>
 #include <wayfire/signal-definitions.hpp>
+#include <wayfire/workarea.hpp>
 
 #include "tree-controller.hpp"
 
@@ -106,7 +106,7 @@ class tile_plugin_t : public wf::plugin_interface_t
 
     wf::signal_connection_t on_workspace_grid_changed = [=] (auto)
     {
-        resize_roots(output->workspace->get_workspace_grid_size());
+        resize_roots(output->wset()->get_workspace_grid_size());
     };
 
     void resize_roots(wf::dimensions_t wsize)
@@ -115,9 +115,9 @@ class tile_plugin_t : public wf::plugin_interface_t
         {
             for (size_t j = 0; j < tiled_sublayer[i].size(); j++)
             {
-                if (!output->workspace->is_workspace_valid({(int)i, (int)j}))
+                if (!output->wset()->is_workspace_valid({(int)i, (int)j}))
                 {
-                    output->workspace->destroy_sublayer(tiled_sublayer[i][j]);
+                    output->wset()->destroy_sublayer(tiled_sublayer[i][j]);
                     roots[i][j].reset();
                 }
             }
@@ -133,18 +133,18 @@ class tile_plugin_t : public wf::plugin_interface_t
             {
                 roots[i][j] =
                     std::make_unique<wf::tile::split_node_t>(default_split);
-                tiled_sublayer[i][j] = output->workspace->create_sublayer(
+                tiled_sublayer[i][j] = output->wset()->create_sublayer(
                     wf::LAYER_WORKSPACE, wf::SUBLAYER_FLOATING);
             }
         }
 
-        update_root_size(output->workspace->get_workarea());
+        update_root_size(output->workarea->get_workarea());
     }
 
     void update_root_size(wf::geometry_t workarea)
     {
         auto output_geometry = output->get_relative_geometry();
-        auto wsize = output->workspace->get_workspace_grid_size();
+        auto wsize = output->wset()->get_workspace_grid_size();
         for (int i = 0; i < wsize.width; i++)
         {
             for (int j = 0; j < wsize.height; j++)
@@ -204,7 +204,7 @@ class tile_plugin_t : public wf::plugin_interface_t
     {
         wf::pointf_t local = output->get_cursor_position();
 
-        auto vp   = output->workspace->get_current_workspace();
+        auto vp   = output->wset()->get_current_workspace();
         auto size = output->get_screen_size();
         local.x += size.width * vp.x;
         local.y += size.height * vp.y;
@@ -223,7 +223,7 @@ class tile_plugin_t : public wf::plugin_interface_t
     /** Check whether we currently have a fullscreen tiled view */
     bool has_fullscreen_view()
     {
-        auto vp = output->workspace->get_current_workspace();
+        auto vp = output->wset()->get_current_workspace();
 
         int count_fullscreen = 0;
         for_each_view(roots[vp.x][vp.y], [&] (wayfire_view view)
@@ -258,7 +258,7 @@ class tile_plugin_t : public wf::plugin_interface_t
 
         if (grab_interface->grab())
         {
-            auto vp = output->workspace->get_current_workspace();
+            auto vp = output->wset()->get_current_workspace();
             controller = std::make_unique<Controller>(
                 roots[vp.x][vp.y], get_global_input_coordinates());
         } else
@@ -299,7 +299,7 @@ class tile_plugin_t : public wf::plugin_interface_t
 
         if (vp == wf::point_t{-1, -1})
         {
-            vp = output->workspace->get_current_workspace();
+            vp = output->wset()->get_current_workspace();
 
             /* Try to add this node to the focused node. */
             auto focused_node = get_active_node();
@@ -336,13 +336,13 @@ class tile_plugin_t : public wf::plugin_interface_t
         // Add this node to the root.
         auto view_node = std::make_unique<wf::tile::view_node_t>(view);
         parent_split->add_child(std::move(view_node));
-        output->workspace->add_view_to_sublayer(view, tiled_sublayer[vp.x][vp.y]);
+        output->wset()->add_view_to_sublayer(view, tiled_sublayer[vp.x][vp.y]);
     }
 
     bool tile_window_by_default(wayfire_view view)
     {
         return can_tile_view(view)
-            && tile_by_default.matches(view) 
+            && tile_by_default.matches(view)
             && !dont_tile_by_default.matches(view);
     }
 
@@ -403,7 +403,7 @@ class tile_plugin_t : public wf::plugin_interface_t
         /* Remove from special sublayer */
         if (reinsert)
         {
-            output->workspace->add_view(wview, wf::LAYER_WORKSPACE);
+            output->wset()->add_view(wview, wf::LAYER_WORKSPACE);
         }
     }
 
@@ -420,7 +420,7 @@ class tile_plugin_t : public wf::plugin_interface_t
 
     signal_connection_t on_workarea_changed = [=] (signal_data_t */*data*/)
     {
-        update_root_size(output->workspace->get_workarea());
+        update_root_size(output->workarea->get_workarea());
     };
 
     signal_connection_t on_tile_request = [=] (signal_data_t *data)
@@ -439,7 +439,7 @@ class tile_plugin_t : public wf::plugin_interface_t
     {
         /* Set fullscreen, and trigger resizing of the views */
         view->set_fullscreen(fullscreen);
-        update_root_size(output->workspace->get_workarea());
+        update_root_size(output->workarea->get_workarea());
     }
 
     signal_connection_t on_fullscreen_request = [=] (signal_data_t *data)
@@ -833,9 +833,9 @@ class tile_plugin_t : public wf::plugin_interface_t
          * their own, and should be able to have more than one */
         this->grab_interface->capabilities = CAPABILITY_MANAGE_COMPOSITOR;
 
-        resize_roots(output->workspace->get_workspace_grid_size());
+        resize_roots(output->wset()->get_workspace_grid_size());
         // TODO: check whether this was successful
-        output->workspace->set_workspace_implementation(
+        output->wset()->set_workspace_implementation(
             std::make_unique<tile_workspace_implementation_t>(), true);
 
         output->connect_signal("view-unmapped", &on_view_unmapped);
@@ -859,13 +859,13 @@ class tile_plugin_t : public wf::plugin_interface_t
 
     void fini() override
     {
-        output->workspace->set_workspace_implementation(nullptr, true);
+        output->wset()->set_workspace_implementation(nullptr, true);
 
         for (auto& row : tiled_sublayer)
         {
             for (auto& sublayer : row)
             {
-                output->workspace->destroy_sublayer(sublayer);
+                output->wset()->destroy_sublayer(sublayer);
             }
         }
 

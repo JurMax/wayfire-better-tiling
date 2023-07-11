@@ -6,16 +6,18 @@
 #include <wayfire/util.hpp>
 #include <wayfire/util/log.hpp>
 #include <wayfire/output.hpp>
-#include <wayfire/workspace-manager.hpp>
 #include <wayfire/view-transform.hpp>
-// #include <wayfire/plugins/crossfade.hpp>
-#include "crossfade.hpp"
+#include <wayfire/view-helpers.hpp>
+#include <wayfire/workspace-set.hpp>
+#include <wayfire/plugins/crossfade.hpp>
+// #include "crossfade.hpp"
+
 
 namespace wf
 {
 namespace tile
 {
-void tree_node_t::set_geometry(wf::geometry_t geometry)
+void tree_node_t::set_geometry(wf::geometry_t geometry, wf::txn::transaction_uptr&)
 {
     this->geometry = geometry;
 }
@@ -39,20 +41,18 @@ int tree_node_t::get_sibling_index()
     return it - children.begin();
 }
 
-
-wf::point_t get_output_local_coordinates(wf::output_t *output, wf::point_t p)
+wf::point_t get_wset_local_coordinates(std::shared_ptr<wf::workspace_set_t> wset, wf::point_t p)
 {
-    auto vp   = output->workspace->get_current_workspace();
-    auto size = output->get_screen_size();
+    auto vp   = wset->get_current_workspace();
+    auto size = wset->get_last_output_geometry().value_or(default_output_resolution);
     p.x -= vp.x * size.width;
     p.y -= vp.y * size.height;
-
     return p;
 }
 
-wf::geometry_t get_output_local_coordinates(wf::output_t *output, wf::geometry_t g)
+wf::geometry_t get_wset_local_coordinates(std::shared_ptr<wf::workspace_set_t> wset, wf::geometry_t g)
 {
-    auto new_tl = get_output_local_coordinates(output, wf::point_t{g.x, g.y});
+    auto new_tl = get_wset_local_coordinates(wset, wf::point_t{g.x, g.y});
     g.x = new_tl.x;
     g.y = new_tl.y;
 
@@ -99,7 +99,7 @@ int32_t split_node_t::calculate_splittable() const
     return calculate_splittable(this->geometry);
 }
 
-void split_node_t::recalculate_children(wf::geometry_t available)
+void split_node_t::recalculate_children(wf::geometry_t available, wf::txn::transaction_uptr& tx)
 {
     if (this->children.empty())
     {
@@ -110,8 +110,8 @@ void split_node_t::recalculate_children(wf::geometry_t available)
     {
         for (auto& child : this->children)
         {
-            child->set_gaps(this->gaps);
-            child->set_geometry(this->geometry);
+            child->set_gaps(this->gaps, tx);
+            child->set_geometry(this->geometry, tx);
         }
 
         return;
@@ -133,7 +133,7 @@ void split_node_t::recalculate_children(wf::geometry_t available)
         return (current / old_child_sum) * total_splittable;
     };
 
-    set_gaps(this->gaps);
+    set_gaps(this->gaps, tx);
 
     /* For each child, assign its percentage of the whole. */
     for (auto& child : this->children)
@@ -146,55 +146,58 @@ void split_node_t::recalculate_children(wf::geometry_t available)
 
         /* Set new size */
         int32_t child_size = child_end - child_start;
-        child->set_geometry(get_child_geometry(child_start, child_size));
+        child->set_geometry(get_child_geometry(child_start, child_size), tx);
     }
 }
 
-void split_node_t::add_child(std::unique_ptr<tree_node_t> child, int index, bool recalculate_size)
+void split_node_t::add_child(std::unique_ptr<tree_node_t> child, wf::txn::transaction_uptr& tx, int index)
 {
-    if (recalculate_size)
+
+    /*
+    * Strategy:
+    * Calculate the size of the new child relative to the old children, so
+    * that proportions are right. After that, rescale all nodes.
+    */
+    int num_children = this->children.size();
+
+    if ((index == -1) || (index > num_children))
     {
-        /*
-        * Strategy:
-        * Calculate the size of the new child relative to the old children, so
-        * that proportions are right. After that, rescale all nodes.
-        */
-        int num_children = this->children.size();
+        index = num_children;
+    }
 
-        /* Calculate where the new child should be, in current proportions */
-        int size_new_child;
-        if (num_children > 0)
-        {
-            size_new_child =
-                (calculate_splittable() + num_children - 1) / num_children;
-        } else
-        {
-            size_new_child = calculate_splittable();
-        }
+    /* Calculate where the new child should be, in current proportions */
+    int size_new_child;
+    if (num_children > 0)
+    {
+        size_new_child =
+            (calculate_splittable() + num_children - 1) / num_children;
+    } else
+    {
+        size_new_child = calculate_splittable();
+    }
 
-        if ((index == -1) || (index > num_children))
-        {
-            index = num_children;
-        }
-
-        // Set size of the child to make sure it gets properly recalculated later
-        child->geometry = get_child_geometry(0, size_new_child);
+    if ((index == -1) || (index > num_children))
+    {
+        index = num_children;
     }
 
     /* Add child to the list */
     child->parent = {this};
+
+    // Set size of the child to make sure it gets properly recalculated later
+    child->geometry = get_child_geometry(0, size_new_child);
+
     this->children.emplace(this->children.begin() + index, std::move(child));
     this->focused_idx = index;
 
-    set_gaps(this->gaps);
+    set_gaps(this->gaps, tx);
 
     /* Recalculate geometry */
-    recalculate_children(geometry);
+    recalculate_children(geometry, tx);
 }
 
 std::unique_ptr<tree_node_t> split_node_t::remove_child(
-    nonstd::observer_ptr<tree_node_t> child,
-    bool recalculate_geometry)
+    nonstd::observer_ptr<tree_node_t> child, wf::txn::transaction_uptr& tx)
 {
     /* Remove child */
     std::unique_ptr<tree_node_t> result;
@@ -213,35 +216,34 @@ std::unique_ptr<tree_node_t> split_node_t::remove_child(
     }
 
     /* Remaining children have the full geometry */
-    if (recalculate_geometry)
-        recalculate_children(this->geometry);
-
+    recalculate_children(this->geometry, tx);
     result->parent = nullptr;
 
     return result;
 }
 
+// TODO: looks like ours, might need more updating
 std::unique_ptr<tree_node_t> split_node_t::replace_child(
     nonstd::observer_ptr<tree_node_t> child,
-    std::unique_ptr<tree_node_t> new_child)
+    std::unique_ptr<tree_node_t> new_child,  wf::txn::transaction_uptr& tx)
 {
     int idx = child->get_sibling_index();
     std::unique_ptr<tree_node_t> result = std::move(this->children[idx]);
     child->parent = nullptr;
-    new_child->set_geometry(child->geometry);
+    new_child->set_geometry(child->geometry, tx);
     new_child->parent = {this};
     this->children[idx] = std::move(new_child);
-    set_gaps(this->gaps);
+    set_gaps(this->gaps, tx);
     return result;
 }
 
-void split_node_t::set_geometry(wf::geometry_t geometry)
+void split_node_t::set_geometry(wf::geometry_t geometry, wf::txn::transaction_uptr& tx)
 {
-    tree_node_t::set_geometry(geometry);
-    recalculate_children(geometry);
+    tree_node_t::set_geometry(geometry, tx);
+    recalculate_children(geometry, tx);
 }
 
-void split_node_t::set_gaps(const gap_size_t& gaps)
+void split_node_t::set_gaps(const gap_size_t& gaps, wf::txn::transaction_uptr& tx)
 {
     this->gaps = gaps;
     for (const auto& child : this->children)
@@ -277,7 +279,7 @@ void split_node_t::set_gaps(const gap_size_t& gaps)
             *second_edge = gaps.internal;
         }
 
-        child->set_gaps(child_gaps);
+        child->set_gaps(child_gaps, tx);
     }
 }
 
@@ -286,12 +288,12 @@ split_direction_t split_node_t::get_split_direction() const
     return this->split_direction;
 }
 
-void split_node_t::set_split_direction(split_direction_t direction)
+void split_node_t::set_split_direction(split_direction_t direction, wf::txn::transaction_uptr& tx)
 {
     if (this->split_direction != direction)
     {
         this->split_direction = direction;
-        recalculate_children(this->geometry);
+        recalculate_children(this->geometry, tx);
         // TODO: keep relative child propertions.
     }
 }
@@ -301,12 +303,12 @@ bool split_node_t::is_tabbed() const
     return this->tabbed;
 }
 
-void split_node_t::set_tabbed(bool tabbed)
+void split_node_t::set_tabbed(bool tabbed, wf::txn::transaction_uptr& tx)
 {
     if (this->tabbed != tabbed)
     {
         this->tabbed = tabbed;
-        recalculate_children(this->geometry);
+        recalculate_children(this->geometry, tx);
     }
 }
 
@@ -321,10 +323,11 @@ static void bring_to_front(wf::output_t* output, nonstd::observer_ptr<tree_node_
     }
     else if (auto view = node->as_view_node())
     {
-        output->workspace->bring_to_front(view->view);
+        wf::view_bring_to_front(view->view);
     }
 }
 
+// TODO: figure out how focus stuff works
 void split_node_t::focus(wf::output_t* output, int idx)
 {
     // Update the focused node.
@@ -348,15 +351,16 @@ void split_node_t::focus(wf::output_t* output, int idx)
     }
     else if (auto view_child = child->as_view_node())
     {
-        bool was_fullscreen = output->get_active_view()->fullscreen;
+        // TODO: figure out how to get fullscreen status of the last focused view
+        // bool was_fullscreen = output->get_active_view()->fullscreen;
 
         /* This will lower the fullscreen status of the view */
         output->focus_view(view_child->view, true);
 
-        if (was_fullscreen)//TODO && keep_fullscreen_on_adjacent)
-        {
-            view_child->view->fullscreen_request(output, true);
-        }
+        // if (was_fullscreen)//TODO && keep_fullscreen_on_adjacent)
+        // {
+        //     view_child->view->fullscreen_request(output, true);
+        // }
     }
 }
 
@@ -384,12 +388,12 @@ struct view_node_custom_data_t : public custom_data_t
  */
 static const std::string scale_transformer_name =
     "better-tiling-scale-transformer";
-struct view_node_t::scale_transformer_t : public wf::view_2D
+struct view_node_t::scale_transformer_t : public wf::scene::view_2d_transformer_t
 {
     wf::geometry_t box;
 
-    scale_transformer_t(wayfire_view view, wf::geometry_t box) :
-        wf::view_2D(view)
+    scale_transformer_t(wayfire_toplevel_view view, wf::geometry_t box) :
+        wf::scene::view_2d_transformer_t(view)
     {
         set_box(box);
     }
@@ -400,7 +404,7 @@ struct view_node_t::scale_transformer_t : public wf::view_2D
 
         this->view->damage();
 
-        auto current = this->view->get_wm_geometry();
+        auto current = toplevel_cast(this->view)->get_geometry();
         if ((current.width <= 0) || (current.height <= 0))
         {
             /* view possibly unmapped?? */
@@ -434,8 +438,14 @@ class tile_view_animation_t : public wf::grid::grid_animation_t
         // The grid animation does this too, however, we want to remove the
         // transformer so that we can enforce the correct geometry from the
         // start.
-        view->pop_transformer("grid-crossfade");
-        view->emit_signal("better-tiling-adjust-transformer", nullptr);
+        view->get_transformed_node()->rem_transformer<grid::crossfade_node_t>();
+
+        tile_adjust_transformer_signal ev;
+        view->emit(&ev);
+
+        // TODO: is this old or custom?
+        // view->pop_transformer("grid-crossfade");
+        // view->emit_signal("better-tiling-adjust-transformer", nullptr);
     }
 
     tile_view_animation_t(const tile_view_animation_t &) = delete;
@@ -444,31 +454,55 @@ class tile_view_animation_t : public wf::grid::grid_animation_t
     tile_view_animation_t& operator =(tile_view_animation_t&&) = delete;
 };
 
-view_node_t::view_node_t(wayfire_view view)
+view_node_t::view_node_t(wayfire_toplevel_view view)
 {
     this->view = view;
     view->store_data(std::make_unique<view_node_custom_data_t>(this));
 
-    this->on_geometry_changed.set_callback([=] (wf::signal_data_t*)
+    this->on_geometry_changed.set_callback([=] (auto)
     {
         update_transformer();
     });
-    this->on_decoration_changed.set_callback([=] (wf::signal_data_t*)
+    on_adjust_transformer.set_callback([=] (auto)
     {
-        set_geometry(geometry);
+        update_transformer();
     });
-    view->connect_signal("geometry-changed", &on_geometry_changed);
-    view->connect_signal("decoration-changed", &on_decoration_changed);
-    view->connect_signal("better-tiling-adjust-transformer", &on_geometry_changed);
+
+    view->connect(&on_geometry_changed);
+    view->connect(&on_adjust_transformer);
 }
+
+// TODO: Ditto as previous
+// {
+//     this->view = view;
+//     view->store_data(std::make_unique<view_node_custom_data_t>(this));
+
+//     this->on_geometry_changed.set_callback([=] (wf::signal_data_t*)
+//     {
+//         update_transformer();
+//     });
+//     this->on_decoration_changed.set_callback([=] (wf::signal_data_t*)
+//     {
+//         set_geometry(geometry);
+//     });
+//     view->connect_signal("geometry-changed", &on_geometry_changed);
+//     view->connect_signal("decoration-changed", &on_decoration_changed);
+//     view->connect_signal("better-tiling-adjust-transformer", &on_geometry_changed);
+// }
+
+// view_node_t::~view_node_t()
+// {
+//     view->pop_transformer(scale_transformer_name);
+//     view->erase_data<view_node_custom_data_t>();
+// }
 
 view_node_t::~view_node_t()
 {
-    view->pop_transformer(scale_transformer_name);
+    view->get_transformed_node()->rem_transformer(scale_transformer_name);
     view->erase_data<view_node_custom_data_t>();
 }
 
-void view_node_t::set_gaps(const gap_size_t& size)
+void view_node_t::set_gaps(const gap_size_t& size, wf::txn::transaction_uptr& tx)
 {
     if ((this->gaps.top != size.top) ||
         (this->gaps.bottom != size.bottom) ||
@@ -483,21 +517,19 @@ wf::geometry_t view_node_t::calculate_target_geometry()
 {
     /* Calculate view geometry in coordinates local to the active workspace,
      * because tree coordinates are kept in workspace-agnostic coordinates. */
-    auto output = view->get_output();
-    auto local_geometry = get_output_local_coordinates(
-        view->get_output(), geometry);
+    auto wset = view->get_wset();
+    auto local_geometry = get_wset_local_coordinates(wset, geometry);
 
     local_geometry.x     += gaps.left;
     local_geometry.y     += gaps.top;
     local_geometry.width -= gaps.left + gaps.right;
     local_geometry.height -= gaps.top + gaps.bottom;
 
-    auto size = output->get_screen_size();
+    auto size = wset->get_last_output_geometry().value_or(default_output_resolution);
     /* If view is maximized, we want to use the full available geometry */
-    if (view->fullscreen)
+    if (view->pending_fullscreen())
     {
-        auto vp = output->workspace->get_current_workspace();
-
+        auto vp = wset->get_current_workspace();
         int view_vp_x = std::floor(1.0 * geometry.x / size.width);
         int view_vp_y = std::floor(1.0 * geometry.y / size.height);
 
@@ -511,10 +543,8 @@ wf::geometry_t view_node_t::calculate_target_geometry()
 
     if (view->sticky)
     {
-        local_geometry.x =
-            (local_geometry.x % size.width + size.width) % size.width;
-        local_geometry.y =
-            (local_geometry.y % size.height + size.height) % size.height;
+        local_geometry.x = (local_geometry.x % size.width + size.width) % size.width;
+        local_geometry.y = (local_geometry.y % size.height + size.height) % size.height;
     }
 
     return local_geometry;
@@ -542,7 +572,7 @@ bool view_node_t::needs_crossfade()
 }
 
 static nonstd::observer_ptr<wf::grid::grid_animation_t> ensure_animation(
-    wayfire_view view, wf::option_sptr_t<int> duration)
+    wayfire_toplevel_view view, wf::option_sptr_t<int> duration)
 {
     if (!view->has_data<wf::grid::grid_animation_t>())
     {
@@ -554,36 +584,63 @@ static nonstd::observer_ptr<wf::grid::grid_animation_t> ensure_animation(
     return view->get_data<wf::grid::grid_animation_t>();
 }
 
-void view_node_t::set_geometry(wf::geometry_t geometry)
+void view_node_t::set_geometry(wf::geometry_t geometry, wf::txn::transaction_uptr& tx)
 {
-    tree_node_t::set_geometry(geometry);
+    tree_node_t::set_geometry(geometry, tx);
 
     if (!view->is_mapped())
     {
         return;
     }
 
-    view->set_tiled(TILED_EDGES_ALL);
+    wf::get_core().default_wm->update_last_windowed_geometry(view);
+    view->toplevel()->pending().tiled_edges = TILED_EDGES_ALL;
+    tx->add_object(view->toplevel());
 
     auto target = calculate_target_geometry();
-    if (this->needs_crossfade() && (target != view->get_wm_geometry()))
+    if (this->needs_crossfade() && (target != view->get_geometry()))
     {
-        if (view->get_transformer(scale_transformer_name))
-        {
-            view->pop_transformer(scale_transformer_name);
-        }
+        view->get_transformed_node()->rem_transformer(scale_transformer_name);
         ensure_animation(view, animation_duration)
-            ->adjust_target_geometry(target, -1);
-        if (view->get_transformer(scale_transformer_name))
-        {
-            view->pop_transformer(scale_transformer_name);
-        }
-    }
-    else
+        ->adjust_target_geometry(target, -1, tx);
+    } else
     {
-        view->set_geometry(target);
+        view->toplevel()->pending().geometry = target;
+        tx->add_object(view->toplevel());
     }
 }
+
+// TODO: same
+// void view_node_t::set_geometry(wf::geometry_t geometry)
+// {
+//     tree_node_t::set_geometry(geometry);
+
+//     if (!view->is_mapped())
+//     {
+//         return;
+//     }
+
+//     view->set_tiled(TILED_EDGES_ALL);
+
+//     auto target = calculate_target_geometry();
+//     if (this->needs_crossfade() && (target != view->get_wm_geometry()))
+//     {
+//         if (view->get_transformer(scale_transformer_name))
+//         {
+//             view->pop_transformer(scale_transformer_name);
+//         }
+//         ensure_animation(view, animation_duration)
+//             ->adjust_target_geometry(target, -1);
+//         if (view->get_transformer(scale_transformer_name))
+//         {
+//             view->pop_transformer(scale_transformer_name);
+//         }
+//     }
+//     else
+//     {
+//         view->set_geometry(target);
+//     }
+// }
 
 void view_node_t::update_transformer()
 {
@@ -599,33 +656,21 @@ void view_node_t::update_transformer()
         return;
     }
 
-    auto wm = view->get_wm_geometry();
-    auto transformer = static_cast<scale_transformer_t*>(
-        view->get_transformer(scale_transformer_name).get());
-
+    auto wm = view->get_geometry();
     if (wm != target_geometry)
     {
-        if (!transformer)
-        {
-            auto tr = std::make_unique<scale_transformer_t>(view, target_geometry);
-            transformer = tr.get();
-            view->add_transformer(std::move(tr), scale_transformer_name);
-        } else
-        {
-            transformer->set_box(target_geometry);
-        }
+        auto tr = ensure_named_transformer<scale_transformer_t>(view,
+            wf::TRANSFORMER_2D, scale_transformer_name, view, target_geometry);
+        tr->set_box(target_geometry);
     } else
     {
-        if (transformer)
-        {
-            view->pop_transformer(scale_transformer_name);
-        }
+        view->get_transformed_node()->rem_transformer(scale_transformer_name);
     }
 }
 
 nonstd::observer_ptr<view_node_t> view_node_t::get_node(wayfire_view view)
 {
-    if (!view || !view->has_data<view_node_custom_data_t>())
+    if (!view->has_data<view_node_custom_data_t>())
     {
         return nullptr;
     }
@@ -634,7 +679,7 @@ nonstd::observer_ptr<view_node_t> view_node_t::get_node(wayfire_view view)
 }
 
 /* ----------------- Generic tree operations implementation ----------------- */
-void flatten_tree(std::unique_ptr<tree_node_t>& root)
+void flatten_tree(std::unique_ptr<tree_node_t>& root, txn::transaction_uptr& tx)
 {
     /* Cannot flatten a view node */
     if (root->as_view_node())
@@ -647,7 +692,7 @@ void flatten_tree(std::unique_ptr<tree_node_t>& root)
     {
         for (auto& child : root->children)
         {
-            flatten_tree(child);
+            flatten_tree(child, tx);
         }
 
         return;
@@ -673,8 +718,7 @@ void flatten_tree(std::unique_ptr<tree_node_t>& root)
     }
 
     /* Rewire the tree, skipping the current root */
-    auto child = root->as_split_node()->remove_child(child_ptr);
-
+    auto child = root->as_split_node()->remove_child(child_ptr, tx);
     child->parent = root->parent;
     root = std::move(child); // overwrite root with the child
 }
