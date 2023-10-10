@@ -1,5 +1,5 @@
  project(
-	'wayfire-better-tiling',
+	'wayfire-better-tile',
     'c',
 	'cpp',
 	version: '0.1',
@@ -27,7 +27,7 @@ subdir('metadata')
 summary = [
 	'',
 	'----------------',
-	'wayfire-better-tiling @0@'.format(meson.project_version()),
+	'wayfire-better-tile @0@'.format(meson.project_version()),
 	'----------------',
 	''
 ]

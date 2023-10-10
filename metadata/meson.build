@@ -1,1 +1,1 @@
- install_data('better-tiling.xml', install_dir: wayfire.get_variable(pkgconfig: 'metadatadir'))
+ install_data('better-tile.xml', install_dir: wayfire.get_variable(pkgconfig: 'metadatadir'))

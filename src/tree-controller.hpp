@@ -7,14 +7,14 @@
 /* Contains functions which are related to manipulating the tiling tree */
 namespace wf
 {
-class preview_indication_view_t;
+class preview_indication_t;
 namespace tile
 {
 /**
  * Run callback for each view in the tree
  */
 void for_each_view(nonstd::observer_ptr<tree_node_t> root,
-    std::function<void(wayfire_view)> callback);
+    std::function<void(wayfire_toplevel_view)> callback);
 
 enum split_insertion_t
 {
@@ -52,7 +52,7 @@ class tile_controller_t
     virtual ~tile_controller_t() = default;
 
     /** Called when the input is moved */
-    virtual void input_motion(wf::point_t /*input*/)
+    virtual void input_motion(wf::point_t input)
     {}
 
     /**
@@ -91,7 +91,7 @@ class move_view_controller_t : public tile_controller_t
     wf::output_t *output;
     wf::point_t current_input;
 
-    nonstd::observer_ptr<wf::preview_indication_view_t> preview;
+    std::shared_ptr<wf::preview_indication_t> preview;
     /**
      * Create preview if it doesn't exist
      *

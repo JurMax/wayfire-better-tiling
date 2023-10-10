@@ -1,22 +1,17 @@
 <?xml version="1.0"?>
 <wayfire>
-	<plugin name="better-tiling">
-		<_short>Better Tiling</_short>
-		<_long>A plugin which provides some tiling features, inspired by Sway. </_long>
+	<plugin name="better-tile">
+		<_short>Better Tile</_short>
+		<_long>A plugin which provides some tiling features, inspired by Sway.	The plugin is meant to contain only the basics.</_long>
 		<category>Window Management</category>
 		<option name="tile_by_default" type="string">
 			<_short>Tile enabled for specified window types</_short>
 			<_long>Enables tiling for windows matching the specified criteria.</_long>
 			<default>all</default>
 		</option>
-		<option name="dont_tile_by_default" type="string">
-			<_short>Tile disabled for specified window types</_short>
-			<_long>Disables tiling for windows matching the specified criteria.</_long>
-			<default>all</default>
-		</option>
 		<option name="keep_fullscreen_on_adjacent" type="bool">
 			<_short>Keep fullscreen on adjacent</_short>
-			<_long>Specifies whether to keep fullscreen state when changing the focus.  If **true**, the next focused window will also get fullscreen.  If **false**, leaves fullscreen.</_long>
+			<_long>Specifies whether to keep fullscreen state when changing the focus.	If **true**, the next focused window will also get fullscreen.	If **false**, leaves fullscreen.</_long>
 			<default>true</default>
 		</option>
 		<!-- Key-bindings -->
@@ -30,6 +25,7 @@
 			<_long>When the specified button is held down, you can drag tiled windows to resize them.</_long>
 			<default>&lt;super&gt; BTN_RIGHT</default>
 		</option>
+
 		<option name="key_toggle" type="key">
 			<_short>Key toggle</_short>
 			<_long>Toggles tiling mode with the specified key.</_long>
@@ -41,6 +37,12 @@
 			<_long>Toggle the direction of the focused split.</_long>
 			<default>&lt;super&gt; KEY_E</default>
 		</option>
+		<option name="key_toggle_tabbed" type="key">
+			<_short>Key toggle tabbed</_short>
+			<_long>Toggle tabbed mode for the focused split.</_long>
+			<default>&lt;super&gt; KEY_W</default>
+		</option>
+
 		<option name="key_split_horizontal" type="key">
 			<_short>Key split horizontal</_short>
 			<_long>Set the default split mode to horizontal.</_long>
@@ -50,12 +52,6 @@
 			<_short>Key split vertical</_short>
 			<_long>Set the default split mode to vertical.</_long>
 			<default>&lt;super&gt; KEY_V</default>
-		</option>
-
-		<option name="key_toggle_tabbed" type="key">
-			<_short>Key toggle tabbed</_short>
-			<_long>Toggle tabbed mode for the focused split.</_long>
-			<default>&lt;super&gt; KEY_W</default>
 		</option>
 
 		<option name="key_focus_left" type="key">
@@ -100,26 +96,39 @@
 			<default>&lt;shift&gt; &lt;super&gt; KEY_J</default>
 		</option>
 
-    <option name="inner_gap_size" type="int">
-      <_short>Inner gap size</_short>
-      <_long>Number of pixels to shrink of a view when it has a neighbor in a given direction.</_long>
-      <default>5</default>
-    </option>
-    <option name="outer_horiz_gap_size" type="int">
-      <_short>Outer horizontal gap size</_short>
-      <_long>Number of pixels to shrink of a view when it has no neighbor on the left or on the right.</_long>
-      <default>0</default>
-    </option>
-    <option name="outer_vert_gap_size" type="int">
-      <_short>Outer vertical gap size</_short>
-      <_long>Number of pixels to shrink of a view when it has no neighbor above or below.</_long>
-      <default>0</default>
-    </option>
-    <option name="animation_duration" type="int">
-      <_short>Resize animation duration</_short>
-      <_long>The duration of the crossfade animation in situations where a tiled view's geometry changes.</_long>
-      <default>0</default>
-      <min>0</min>
-    </option>
+		<option name="inner_gap_size" type="int">
+			<_short>Inner gap size</_short>
+			<_long>Number of pixels to shrink of a view when it has a neighbor in a given direction.</_long>
+			<default>5</default>
+		</option>
+		<option name="outer_horiz_gap_size" type="int">
+			<_short>Outer horizontal gap size</_short>
+			<_long>Number of pixels to shrink of a view when it has no neighbor on the left or on the right.</_long>
+			<default>0</default>
+		</option>
+		<option name="outer_vert_gap_size" type="int">
+			<_short>Outer vertical gap size</_short>
+			<_long>Number of pixels to shrink of a view when it has no neighbor above or below.</_long>
+			<default>0</default>
+		</option>
+		<option name="animation_duration" type="int">
+			<_short>Resize animation duration</_short>
+			<_long>The duration of the crossfade animation in situations where a tiled view's geometry changes.</_long>
+			<default>0</default>
+			<min>0</min>
+		</option>
+		<option name="preview_base_color" type="color">
+			<_short>Preview fill color</_short>
+			<default>0.5 0.5 1 0.5</default>
+		</option>
+		<option name="preview_base_border" type="color">
+			<_short>Preview border color</_short>
+			<default>0.25 0.25 0.5 0.8</default>
+		</option>
+		<option name="preview_border_width" type="int">
+			<_short>Preview border width</_short>
+			<default>3</default>
+			<min>0</min>
+		</option>
 	</plugin>
 </wayfire>

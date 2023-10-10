@@ -1,20 +1,22 @@
 #include "tree-controller.hpp"
 
 #include <set>
+#include <wayfire/nonstd/tracking-allocator.hpp>
 #include <algorithm>
 #include <wayfire/core.hpp>
 #include <wayfire/output.hpp>
-#include <wayfire/workspace-manager.hpp>
+#include <wayfire/workspace-set.hpp>
 #include <wayfire/util.hpp>
 #include <wayfire/nonstd/reverse.hpp>
 #include <wayfire/plugins/common/preview-indication.hpp>
+#include <wayfire/txn/transaction-manager.hpp>
 
 namespace wf
 {
 namespace tile
 {
 void for_each_view(nonstd::observer_ptr<tree_node_t> root,
-    std::function<void(wayfire_view)> callback)
+    std::function<void(wayfire_toplevel_view)> callback)
 {
     if (root->as_view_node())
     {
@@ -218,12 +220,12 @@ move_view_controller_t::~move_view_controller_t()
     if (this->preview)
     {
         this->preview->set_target_geometry(
-            get_output_local_coordinates(output, current_input), 0.0, true);
+            get_wset_local_coordinates(output->wset(), current_input), 0.0, true);
     }
 }
 
 nonstd::observer_ptr<view_node_t> move_view_controller_t::check_drop_destination(
-    wf::point_t /*input*/)
+    wf::point_t input)
 {
     auto dropped_at = find_view_at(this->root, this->current_input);
     if (!dropped_at || (dropped_at == this->grabbed_view))
@@ -241,10 +243,7 @@ void move_view_controller_t::ensure_preview(wf::point_t start)
         return;
     }
 
-    auto view = std::make_unique<wf::preview_indication_view_t>(output, start);
-
-    this->preview = {view};
-    wf::get_core().add_view(std::move(view));
+    preview = std::make_shared<wf::preview_indication_t>(start, output, "better-tile");
 }
 
 void move_view_controller_t::input_motion(wf::point_t input)
@@ -261,19 +260,30 @@ void move_view_controller_t::input_motion(wf::point_t input)
         /* No view, no preview */
         if (this->preview)
         {
-            preview->set_target_geometry(
-                get_output_local_coordinates(output, input), 0.0);
+            preview->set_target_geometry(get_wset_local_coordinates(output->wset(), input), 0.0);
         }
 
         return;
     }
 
     auto split = calculate_insert_type(view, input);
-    ensure_preview(get_output_local_coordinates(output, input));
+    ensure_preview(get_wset_local_coordinates(output->wset(), input));
 
     auto preview_geometry = calculate_split_preview(view, split);
-    preview_geometry = get_output_local_coordinates(output, preview_geometry);
+    preview_geometry = get_wset_local_coordinates(output->wset(), preview_geometry);
     this->preview->set_target_geometry(preview_geometry, 1.0);
+}
+
+/**
+ * Find the index of the view in its parent list
+ */
+static int find_idx(nonstd::observer_ptr<tree_node_t> view)
+{
+    auto& children = view->parent->children;
+    auto it = std::find_if(children.begin(), children.end(),
+        [=] (auto& node) { return node.get() == view.get(); });
+
+    return it - children.begin();
 }
 
 void move_view_controller_t::input_released()
@@ -289,6 +299,8 @@ void move_view_controller_t::input_released()
     {
         return;
     }
+
+    auto tx = wf::txn::transaction_t::create();
 
     if (split == INSERT_SWAP)
     {
@@ -306,8 +318,8 @@ void move_view_controller_t::input_released()
 
         std::swap(*it1, *it2);
 
-        p1->set_geometry(p1->geometry);
-        p2->set_geometry(p2->geometry);
+        p1->set_geometry(p1->geometry, tx);
+        p2->set_geometry(p2->geometry, tx);
         return;
     }
 
@@ -317,15 +329,15 @@ void move_view_controller_t::input_released()
     if (dropped_at->parent->get_split_direction() == split_type)
     {
         /* We can simply add the dragged view as a sibling of the target view */
-        auto view = grabbed_view->parent->remove_child(grabbed_view);
+        auto view = grabbed_view->parent->remove_child(grabbed_view, tx);
 
-        int idx = dropped_at->get_sibling_index();
+        int idx = find_idx(dropped_at);
         if ((split == INSERT_RIGHT) || (split == INSERT_BELOW))
         {
             ++idx;
         }
 
-        dropped_at->parent->add_child(std::move(view), idx);
+        dropped_at->parent->add_child(std::move(view), tx, idx);
     } else
     {
         /* Case 2: we need a new split just for the dropped on and the dragged
@@ -333,34 +345,33 @@ void move_view_controller_t::input_released()
         auto new_split = std::make_unique<split_node_t>(split_type);
         /* The size will be autodetermined by the tree structure, but we set
          * some valid size here to avoid UB */
-        new_split->set_geometry(dropped_at->geometry);
+        new_split->set_geometry(dropped_at->geometry, tx);
 
         /* Find the position of the dropped view and its parent */
-        int idx = dropped_at->get_sibling_index();
+        int idx = find_idx(dropped_at);
         auto dropped_parent = dropped_at->parent;
 
-        // TODO: use replace_child for this.
-
         /* Remove both views */
-        auto dropped_view = dropped_at->parent->remove_child(dropped_at);
-        auto dragged_view = grabbed_view->parent->remove_child(grabbed_view);
+        auto dropped_view = dropped_at->parent->remove_child(dropped_at, tx);
+        auto dragged_view = grabbed_view->parent->remove_child(grabbed_view, tx);
 
         if ((split == INSERT_ABOVE) || (split == INSERT_LEFT))
         {
-            new_split->add_child(std::move(dragged_view));
-            new_split->add_child(std::move(dropped_view));
+            new_split->add_child(std::move(dragged_view), tx);
+            new_split->add_child(std::move(dropped_view), tx);
         } else
         {
-            new_split->add_child(std::move(dropped_view));
-            new_split->add_child(std::move(dragged_view));
+            new_split->add_child(std::move(dropped_view), tx);
+            new_split->add_child(std::move(dragged_view), tx);
         }
 
         /* Put them in place */
-        dropped_parent->add_child(std::move(new_split), idx);
+        dropped_parent->add_child(std::move(new_split), tx, idx);
     }
 
     /* Clean up tree structure */
-    flatten_tree(this->root);
+    flatten_tree(this->root, tx);
+    wf::get_core().tx_manager->schedule_transaction(std::move(tx));
 }
 
 wf::geometry_t eval(nonstd::observer_ptr<tree_node_t> node)
@@ -412,8 +423,7 @@ uint32_t resize_view_controller_t::calculate_resizing_edges(wf::point_t grab)
     return result_edges;
 }
 
-resize_view_controller_t::resizing_pair_t resize_view_controller_t::
-find_resizing_pair(bool horiz)
+resize_view_controller_t::resizing_pair_t resize_view_controller_t::find_resizing_pair(bool horiz)
 {
     split_insertion_t direction;
 
@@ -498,7 +508,7 @@ find_resizing_pair(bool horiz)
     return result_pair;
 }
 
-void resize_view_controller_t::adjust_geometry(int32_t& /*x1*/, int32_t& len1,
+void resize_view_controller_t::adjust_geometry(int32_t& x1, int32_t& len1,
     int32_t& x2, int32_t& len2, int32_t delta)
 {
     /*
@@ -528,6 +538,7 @@ void resize_view_controller_t::input_motion(wf::point_t input)
         return;
     }
 
+    auto tx = wf::txn::transaction_t::create();
     if (horizontal_pair.first && horizontal_pair.second)
     {
         int dy = input.y - last_point.y;
@@ -536,8 +547,8 @@ void resize_view_controller_t::input_motion(wf::point_t input)
         auto g2 = horizontal_pair.second->geometry;
 
         adjust_geometry(g1.y, g1.height, g2.y, g2.height, dy);
-        horizontal_pair.first->set_geometry(g1);
-        horizontal_pair.second->set_geometry(g2);
+        horizontal_pair.first->set_geometry(g1, tx);
+        horizontal_pair.second->set_geometry(g2, tx);
     }
 
     if (vertical_pair.first && vertical_pair.second)
@@ -548,10 +559,11 @@ void resize_view_controller_t::input_motion(wf::point_t input)
         auto g2 = vertical_pair.second->geometry;
 
         adjust_geometry(g1.x, g1.width, g2.x, g2.width, dx);
-        vertical_pair.first->set_geometry(g1);
-        vertical_pair.second->set_geometry(g2);
+        vertical_pair.first->set_geometry(g1, tx);
+        vertical_pair.second->set_geometry(g2, tx);
     }
 
+    wf::get_core().tx_manager->schedule_transaction(std::move(tx));
     this->last_point = input;
 }
 }

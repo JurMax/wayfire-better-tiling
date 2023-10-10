@@ -1,13 +1,13 @@
-pkgname=wayfire-better-tiling
+pkgname=wayfire-better-tile
 pkgver=0.1
 pkgrel=1
 pkgdesc="Tiling window manager for Wayfire."
 arch=('x86_64')
-url="https://github.com/JurMax/wayfire-better-tiling"
+url="https://github.com/JurMax/wayfire-better-tile"
 license=('MIT')
 depends=('wayfire')
 makedepends=('git' 'meson' 'ninja' 'cmake')
-provides=('wayfire-better-tiling')
+provides=('wayfire-better-tile')
 conflicts=("$pkgname")
 replaces=()
 options=()
